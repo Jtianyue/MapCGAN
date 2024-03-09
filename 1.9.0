@@ -1,0 +1,6 @@
+Channels:
+ - defaults
+ - pytorch
+Platform: win-64
+Collecting package metadata (repodata.json): ...working... done
+Solving environment: ...working... failed
