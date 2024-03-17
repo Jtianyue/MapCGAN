@@ -759,28 +759,28 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
     net = None
     norm_layer = get_norm_layer(norm_type=norm)
 
-    # if netG == 'resnet_9blocks':
-    #     net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
-    # elif netG == 'resnet_6blocks':
-    #     net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=6)
-    # elif netG == 'unet_128':
-    #     net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
-    # elif netG == 'unet_256':
-    #     net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
-    # else:
-    #     raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     if netG == 'resnet_9blocks':
-        net = Unet_SEA_ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout,
-                                       n_blocks=9)
+        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
     elif netG == 'resnet_6blocks':
-        net = Unet_SEA_ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout,
-                                       n_blocks=6)
+        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=6)
     elif netG == 'unet_128':
-        net = Unet_SEA_ResnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+        net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_256':
-        net = Unet_SEA_ResnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+        net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
+    # if netG == 'resnet_9blocks':
+    #     net = Unet_SEA_ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout,
+    #                                    n_blocks=9)
+    # elif netG == 'resnet_6blocks':
+    #     net = Unet_SEA_ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout,
+    #                                    n_blocks=6)
+    # elif netG == 'unet_128':
+    #     net = Unet_SEA_ResnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+    # elif netG == 'unet_256':
+    #     net = Unet_SEA_ResnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+    # else:
+    #     raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
 
     return init_net(net, init_type, init_gain, gpu_ids)
 
@@ -819,9 +819,9 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal'
     norm_layer = get_norm_layer(norm_type=norm)
 
     if netD == 'basic':  # default PatchGAN classifier
-        net = Discriminator(input_nc, ndf, n_layers=3, norm_layer=norm_layer)
+        net = NLayerDiscriminator(input_nc, ndf, n_layers=3, norm_layer=norm_layer)
     elif netD == 'n_layers':  # more options
-        net = Discriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer)
+        net = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer)
     elif netD == 'pixel':  # classify if each pixel is real or fake
         net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer)
     else:
@@ -833,6 +833,7 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal'
 # Classes
 ##############################################################################
 class GANLoss(nn.Module):
+
     """Define different GAN objectives.
 
     The GANLoss class abstracts away the need to create the target label tensor
@@ -1148,6 +1149,54 @@ class UnetSkipConnectionBlock(nn.Module):
             return torch.cat([x, self.model(x)], 1)
 
 
+class NLayerDiscriminator(nn.Module):
+    """Defines a PatchGAN discriminator"""
+
+    def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d):
+        """Construct a PatchGAN discriminator
+
+        Parameters:
+            input_nc (int)  -- the number of channels in input images
+            ndf (int)       -- the number of filters in the last conv layer
+            n_layers (int)  -- the number of conv layers in the discriminator
+            norm_layer      -- normalization layer
+        """
+        super(NLayerDiscriminator, self).__init__()
+        if type(norm_layer) == functools.partial:  # no need to use bias as BatchNorm2d has affine parameters
+            use_bias = norm_layer.func == nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm2d
+
+        kw = 4
+        padw = 1
+        sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), nn.LeakyReLU(0.2, True)]
+        nf_mult = 1
+        nf_mult_prev = 1
+        for n in range(1, n_layers):  # gradually increase the number of filters
+            nf_mult_prev = nf_mult
+            nf_mult = min(2 ** n, 8)
+            sequence += [
+                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=2, padding=padw, bias=use_bias),
+                norm_layer(ndf * nf_mult),
+                nn.LeakyReLU(0.2, True)
+            ]
+
+        nf_mult_prev = nf_mult
+        nf_mult = min(2 ** n_layers, 8)
+        sequence += [
+            nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=1, padding=padw, bias=use_bias),
+            norm_layer(ndf * nf_mult),
+            nn.LeakyReLU(0.2, True)
+        ]
+
+        sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]  # output 1 channel prediction map
+        self.model = nn.Sequential(*sequence)
+
+    def forward(self, input):
+        """Standard forward."""
+        return self.model(input)
+
+
 class PixelDiscriminator(nn.Module):
     """Defines a 1x1 PatchGAN discriminator (pixelGAN)"""
 
@@ -1178,272 +1227,3 @@ class PixelDiscriminator(nn.Module):
     def forward(self, input):
         """Standard forward."""
         return self.net(input)
-
-
-class Unet_SEA_ResnetGenerator(nn.Module):
-
-    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6,
-                 padding_type='reflect'):
-        assert (n_blocks >= 0)
-        super(Unet_SEA_ResnetGenerator, self).__init__()
-        if type(norm_layer) == functools.partial:
-            use_bias = norm_layer.func == nn.InstanceNorm2d
-        else:
-            use_bias = norm_layer == nn.InstanceNorm2d
-        self.pad = nn.ReflectionPad2d(3)
-        self.Down_conv1 = nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias)  # 下采样第一层
-        self.conv_norm = norm_layer(input_nc)
-        self.relu = nn.ReLU(True)
-        self.Down_conv2 = nn.Conv2d(ngf, ngf * 2, kernel_size=3, stride=2, padding=1, bias=use_bias)  # 下采样第二层
-        self.SA = Self_Attention_no_connect(ngf * 2, 'relu')
-        self.Down_conv3 = nn.Conv2d(ngf * 2, ngf * 4, kernel_size=3, stride=2, padding=1, bias=use_bias)  # 下采样第三层
-        self.Sa_block_3 = SEA_Block_3(ngf * 4, padding_type=padding_type, norm_layer=norm_layer,
-                                      use_dropout=use_dropout, use_bias=use_bias)
-        self.Sa_resnetblock_1 = SEA_ResnetBlock_1(ngf * 4, padding_type=padding_type, norm_layer=norm_layer,
-                                                  use_dropout=use_dropout, use_bias=use_bias)
-        self.resnet = ResnetBlock(ngf * 4, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout,
-                                  use_bias=use_bias)
-        self.Up_conv1 = nn.ConvTranspose2d(ngf * 4 * 2, ngf * 2, kernel_size=3, stride=2, padding=1, output_padding=1,
-                                           bias=use_bias)
-        self.Up_conv2 = nn.ConvTranspose2d(ngf * 2 * 2, ngf, kernel_size=3, stride=2, padding=1, output_padding=1,
-                                           bias=use_bias)
-        self.Up_conv3 = nn.Conv2d(ngf * 2, output_nc, kernel_size=7, padding=0)
-        self.tan = nn.Tanh()
-
-    def forward(self, x):
-        x1 = self.relu(self.conv_norm(self.Down_conv1(self.pad(x))))
-        x2 = self.relu(self.conv_norm(self.Down_conv2(x1)))
-        x3 = self.relu(self.conv_norm(self.Down_conv3(x2)))
-        x4 = self.resnet(x3)
-        x = torch.cat([x4, x3], 1)
-        x = self.relu(self.conv_norm(self.Up_conv1(x)))
-        x = torch.cat([x, x2], 1)
-        x = self.relu(self.conv_norm(self.Up_conv2(x)))
-        x = torch.cat([x, x1], 1)
-        x = self.tan(self.Up_conv3(self.pad(x)))
-        return x
-
-
-class Self_Attention(nn.Module):
-
-    def __init__(self, in_dim, activation):
-        super(Self_Attention, self).__init__()
-        self.chanel_in = in_dim
-        self.activation = activation
-        ##  下面的query_conv，key_conv，value_conv即对应Wg,Wf,Wh
-        self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)  # 即得到C^ X C
-        self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)  # 即得到C^ X C
-        self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)  # 即得到C X C
-        self.gamma = nn.Parameter(torch.zeros(1))  # 这里即是计算最终输出的时候的伽马值，初始化为0
-
-        self.softmax = nn.Softmax(dim=-1)
-
-    def forward(self, x):
-        m_batchsize, C, width, height = x.size()
-        ##  下面的proj_query，proj_key都是C^ X C X C X N= C^ X N
-        proj_query = self.query_conv(x).view(m_batchsize, -1, width * height).permute(0, 2, 1)  # B X CX(N),permute即为转置
-        proj_key = self.key_conv(x).view(m_batchsize, -1, width * height)  # B X C x (*W*H)
-        energy = torch.bmm(proj_query, proj_key)  # transpose check，进行点乘操作
-        attention = self.softmax(energy)  # BX (N) X (N)
-        proj_value = self.value_conv(x).view(m_batchsize, -1, width * height)  # B X C X N
-
-        out = torch.bmm(proj_value, attention.permute(0, 2, 1))
-        out = out.view(m_batchsize, C, width, height)
-
-        out = self.gamma * out + x
-        return out
-
-
-class SEA_ResnetBlock_1(nn.Module):
-
-    def __init__(self, dim, padding_type, norm_layer, use_dropout, use_bias):
-        super(SEA_ResnetBlock_1, self).__init__()
-        self.conv_block = self.build_conv_block(dim, padding_type, norm_layer, use_dropout, use_bias)
-        self.self_attention = Self_Attention(dim, 'relu')
-
-    def build_conv_block(self, dim, padding_type, norm_layer, use_dropout, use_bias):
-        conv_block = []
-        p = 0
-        if padding_type == 'reflect':
-            conv_block += [nn.ReflectionPad2d(1)]
-        elif padding_type == 'replicate':
-            conv_block += [nn.ReplicationPad2d(1)]
-        elif padding_type == 'zero':
-            p = 1
-        else:
-            raise NotImplementedError('padding [%s] is not implemented' % padding_type)
-
-        conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias), norm_layer(dim), nn.ReLU(True)]
-        if use_dropout:
-            conv_block += [nn.Dropout(0.5)]
-
-        p = 0
-        if padding_type == 'reflect':
-            conv_block += [nn.ReflectionPad2d(1)]
-        elif padding_type == 'replicate':
-            conv_block += [nn.ReplicationPad2d(1)]
-        elif padding_type == 'zero':
-            p = 1
-        else:
-            raise NotImplementedError('padding [%s] is not implemented' % padding_type)
-        conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias), norm_layer(dim)]
-
-        return nn.Sequential(*conv_block)
-
-    def forward(self, x):
-        out = self.self_attention(x) + self.conv_block(x) + x  # add skip connections
-        return out
-
-
-class Self_Attention_no_connect(nn.Module):
-    def __init__(self, in_dim, activation):
-        super(Self_Attention_no_connect, self).__init__()
-        self.chanel_in = in_dim
-        self.activation = activation
-        self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
-        self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
-        self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
-        self.gamma = nn.Parameter(torch.zeros(1))
-        self.softmax = nn.Softmax(dim=-1)
-
-    def forward(self, x):
-        m_batchsize, C, width, height = x.size()
-        proj_query = self.query_conv(x).view(m_batchsize, -1, width * height).permute(0, 2, 1)
-        proj_key = self.key_conv(x).view(m_batchsize, -1, width * height)
-        energy = torch.bmm(proj_query, proj_key)
-        attention = self.softmax(energy)
-        proj_value = self.value_conv(x).view(m_batchsize, -1, width * height)
-        out = torch.bmm(proj_value, attention.permute(0, 2, 1))
-        out = out.view(m_batchsize, C, width, height)
-        out = self.gamma * out
-        return out
-
-
-class SEA_Block_3(nn.Module):
-    def __init__(self, dim, padding_type, norm_layer, use_dropout, use_bias):
-        super(SEA_Block_3, self).__init__()
-        self.conv_block = self.build_conv_block(dim, padding_type, norm_layer, use_dropout, use_bias)
-        self.self_attention = Self_Attention_no_connect(dim, 'relu')
-
-    def build_conv_block(self, dim, padding_type, norm_layer, use_dropout, use_bias):
-        conv_block = []
-        p = 0
-        if padding_type == 'reflect':
-            conv_block += [nn.ReflectionPad2d(1)]
-        elif padding_type == 'replicate':
-            conv_block += [nn.ReplicationPad2d(1)]
-        elif padding_type == 'zero':
-            p = 1
-        else:
-            raise NotImplementedError('padding [%s] is not implemented' % padding_type)
-
-        conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias), norm_layer(dim), nn.ReLU(True)]
-        if use_dropout:
-            conv_block += [nn.Dropout(0.5)]
-
-        p = 0
-        if padding_type == 'reflect':
-            conv_block += [nn.ReflectionPad2d(1)]
-        elif padding_type == 'replicate':
-            conv_block += [nn.ReplicationPad2d(1)]
-        elif padding_type == 'zero':
-            p = 1
-        else:
-            raise NotImplementedError('padding [%s] is not implemented' % padding_type)
-        conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias), norm_layer(dim)]
-
-        return nn.Sequential(*conv_block)
-
-    def forward(self, x):
-        out = self.self_attention(x) + self.conv_block(x) + x  # add skip connections
-        return out
-
-    def forward(self, x):
-        x1 = self.relu(self.conv_norm(self.Down_conv1(self.pad(x))))
-        x2 = self.relu(self.conv_norm(self.Down_conv2(x1)))
-        x3 = self.relu(self.conv_norm(self.Down_conv3(x2)))
-        x4 = self.resnet(x3)
-        x = torch.cat([x4, x3], 1)
-        x = self.relu(self.conv_norm(self.Up_conv1(x)))
-        x = torch.cat([x, x2], 1)
-        x = self.relu(self.conv_norm(self.Up_conv2(x)))
-        x = torch.cat([x, x1], 1)
-        x = self.tan(self.Up_conv3(self.pad(x)))
-        return x
-
-
-class Discriminator(nn.Module):
-    def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d):
-        super(Discriminator, self).__init__()
-        # 256 x 256
-        self.conv1 = nn.Sequential(nn.Conv2d(input_nc, ndf, kernel_size=3, stride=1, padding=1),
-                                   nn.ELU(True),
-                                   conv_block(ndf, ndf))
-        # 128 x 128
-        self.conv2 = conv_block(ndf, ndf * 2)
-        # 64 x 64
-        self.conv3 = conv_block(ndf * 2, ndf * 3)
-        # 32 x 32
-        self.conv4 = conv_block(ndf * 3, ndf * 4)
-        # 16 x 16
-        self.conv5 = conv_block(ndf * 4, ndf * 5)
-        # 8 x 8
-        self.conv6 = nn.Sequential(nn.Conv2d(ndf * 5, ndf * 5, kernel_size=3, stride=1, padding=1),
-                                   nn.ELU(True),
-                                   nn.Conv2d(ndf * 5, ndf * 5, kernel_size=3, stride=1, padding=1),
-                                   nn.ELU(True))
-        self.embed1 = nn.Linear(ndf * 5 * 8 * 8, 64)
-        self.embed2 = nn.Linear(64, ndf * 8 * 8)
-
-        # 8 x 8
-        self.deconv1 = deconv_block(ndf, ndf)
-        # 16 x 16
-        self.deconv2 = deconv_block(ndf, ndf)
-        # 32 x 32
-        self.deconv3 = deconv_block(ndf, ndf)
-        # 64 x 64
-        self.deconv4 = deconv_block(ndf, ndf)
-        # 128 x 128
-        self.deconv5 = deconv_block(ndf, ndf)
-        # 256 x 256
-        self.deconv6 = nn.Sequential(nn.Conv2d(ndf, ndf, kernel_size=3, stride=1, padding=1),
-                                     nn.ELU(True),
-                                     nn.Conv2d(ndf, ndf, kernel_size=3, stride=1, padding=1),
-                                     nn.ELU(True),
-                                     nn.Conv2d(ndf, input_nc, kernel_size=3, stride=1, padding=1),
-                                     nn.Tanh())
-        self.ndf = ndf
-
-    def forward(self, x):
-        out = self.conv1(x)
-        out = self.conv2(out)
-        out = self.conv3(out)
-        out = self.conv4(out)
-        out = self.conv5(out)
-        out = self.conv6(out)
-        out = out.view(out.size(0), self.ndf * 5 * 8 * 8)
-
-        out = self.embed1(out)
-        out = self.embed2(out)
-        out = out.view(out.size(0), self.ndf, 8, 8)
-        out = self.deconv1(out)
-        out = self.deconv2(out)
-        out = self.deconv3(out)
-        out = self.deconv4(out)
-        out = self.deconv5(out)
-        out = self.deconv6(out)
-        return out
-
-
-def conv_block(in_channels, out_channels, kernel_size=3, stride=2, padding=1):
-    return nn.Sequential(
-        nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding),
-        nn.ELU(True),
-        nn.BatchNorm2d(out_channels))
-
-
-def deconv_block(in_channels, out_channels, kernel_size=3, stride=2, padding=1, output_padding=1):
-    return nn.Sequential(
-        nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding, output_padding),
-        nn.ELU(True),
-        nn.BatchNorm2d(out_channels))
