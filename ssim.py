@@ -29,12 +29,12 @@ def calculate_metrics(img1_tensor, img2_tensor):
     # 计算PSNR
     psnr_value = psnr(img1_np, img2_np)
 
-    rmse_value = np.sqrt(((img1_np - img2_np) ** 2).mean())
+    rmse_value = (((img1_np - img2_np) ** 2).mean())
 
     return ssim_value, psnr_value, lpips_distance, rmse_value
 
 
-folder_path = 'results/maps_lpips150epoch/test_latest/images'
+folder_path = 'results/maps_loss+trick100/test_latest/images'
 image_files = sorted(
     [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith(('.png'))])
 
@@ -42,7 +42,7 @@ image_files = sorted(
 assert len(image_files) % 6 == 0, "The number of images in the folder must be a multiple of 6."
 
 ssim_total3, psnr_total3, lpips_total3, rmse_total3 = 0, 0, 0,0
-ssim_total2, psnr_total2, lpips_total2, rmse_total2 = 0, 0, 0
+ssim_total2, psnr_total2, lpips_total2, rmse_total2 = 0, 0, 0,0
 num_pairs = 0
 
 for i in range(0, len(image_files), 6):
@@ -81,18 +81,18 @@ rmse_avg3= rmse_total3 / num_pairs
 ssim_avg2 = ssim_total2 / num_pairs
 psnr_avg2 = psnr_total2 / num_pairs
 lpips_avg2 = lpips_total2 / num_pairs
-rmse_avg2= rmse_total3 / num_pairs
+rmse_avg2= rmse_total2 / num_pairs
 
 print(f"Average SSIM: {ssim_avg3}")
 print(f"Average PSNR: {psnr_avg3}")
 print(f"Average LPIPS: {lpips_avg3}")
-print(f"Average RMSE: {rmse_avg3}")
+print(f"Average MSE: {rmse_avg3}")
 
 
 print(f"Average SSIM: {ssim_avg2}")
 print(f"Average PSNR: {psnr_avg2}")
 print(f"Average LPIPS: {lpips_avg2}")
-print(f"Average RMSE: {rmse_avg2}")
+print(f"Average MSE: {rmse_avg2}")
 
 
 
