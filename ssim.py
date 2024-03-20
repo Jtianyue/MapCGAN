@@ -34,7 +34,7 @@ def calculate_metrics(img1_tensor, img2_tensor):
     return ssim_value, psnr_value, lpips_distance, rmse_value
 
 
-folder_path = 'results/maps_trick+0+20+100/test_latest/images'
+folder_path = 'results/maps_trick+7d5+12d5+100/test_latest/images'
 image_files = sorted(
     [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith(('.png'))])
 
