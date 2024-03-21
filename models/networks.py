@@ -582,12 +582,12 @@ class Unet_SEA_ResnetGenerator(nn.Module):
         else:
             use_bias = norm_layer == nn.InstanceNorm2d
         self.pad = nn.ReflectionPad2d(3)
-        self.Down_conv1 = nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias)  # 下采样第一层
+        self.Down_conv1 = nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias)
         self.conv_norm = norm_layer(input_nc)
         self.relu = nn.ReLU(True)
-        self.Down_conv2 = nn.Conv2d(ngf, ngf * 2, kernel_size=3, stride=2, padding=1, bias=use_bias)  # 下采样第二层
+        self.Down_conv2 = nn.Conv2d(ngf, ngf * 2, kernel_size=3, stride=2, padding=1, bias=use_bias)
         self.SA = Self_Attention_no_connect(ngf * 2, 'relu')
-        self.Down_conv3 = nn.Conv2d(ngf * 2, ngf * 4, kernel_size=3, stride=2, padding=1, bias=use_bias)  # 下采样第三层
+        self.Down_conv3 = nn.Conv2d(ngf * 2, ngf * 4, kernel_size=3, stride=2, padding=1, bias=use_bias)
         self.Sa_block_3 = SEA_Block_3(ngf * 4, padding_type=padding_type, norm_layer=norm_layer,
                                       use_dropout=use_dropout, use_bias=use_bias)
         self.Sa_resnetblock_1 = SEA_ResnetBlock_1(ngf * 4, padding_type=padding_type, norm_layer=norm_layer,
@@ -621,22 +621,22 @@ class Self_Attention(nn.Module):
         super(Self_Attention, self).__init__()
         self.chanel_in = in_dim
         self.activation = activation
-        ##  下面的query_conv，key_conv，value_conv即对应Wg,Wf,Wh
-        self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)  # 即得到C^ X C
-        self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)  # 即得到C^ X C
-        self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)  # 即得到C X C
-        self.gamma = nn.Parameter(torch.zeros(1))  # 这里即是计算最终输出的时候的伽马值，初始化为0
+
+        self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
+        self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
+        self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
+        self.gamma = nn.Parameter(torch.zeros(1))
 
         self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, x):
         m_batchsize, C, width, height = x.size()
-        ##  下面的proj_query，proj_key都是C^ X C X C X N= C^ X N
-        proj_query = self.query_conv(x).view(m_batchsize, -1, width * height).permute(0, 2, 1)  # B X CX(N),permute即为转置
-        proj_key = self.key_conv(x).view(m_batchsize, -1, width * height)  # B X C x (*W*H)
-        energy = torch.bmm(proj_query, proj_key)  # transpose check，进行点乘操作
-        attention = self.softmax(energy)  # BX (N) X (N)
-        proj_value = self.value_conv(x).view(m_batchsize, -1, width * height)  # B X C X N
+
+        proj_query = self.query_conv(x).view(m_batchsize, -1, width * height).permute(0, 2, 1)
+        proj_key = self.key_conv(x).view(m_batchsize, -1, width * height)
+        energy = torch.bmm(proj_query, proj_key)
+        attention = self.softmax(energy)
+        proj_value = self.value_conv(x).view(m_batchsize, -1, width * height)
 
         out = torch.bmm(proj_value, attention.permute(0, 2, 1))
         out = out.view(m_batchsize, C, width, height)
@@ -723,7 +723,7 @@ class NLayerDiscriminator(nn.Module):
             norm_layer      -- normalization layer
         """
         super(NLayerDiscriminator, self).__init__()
-        if type(norm_layer) == functools.partial:  # no need to use bias as BatchNorm2d has affine parameters
+        if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
             use_bias = norm_layer == nn.InstanceNorm2d
@@ -733,7 +733,7 @@ class NLayerDiscriminator(nn.Module):
         sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), nn.LeakyReLU(0.2, True)]
         nf_mult = 1
         nf_mult_prev = 1
-        for n in range(1, n_layers):  # gradually increase the number of filters
+        for n in range(1, n_layers):
             nf_mult_prev = nf_mult
             nf_mult = min(2 ** n, 8)
             sequence += [
@@ -770,7 +770,7 @@ class PixelDiscriminator(nn.Module):
             norm_layer      -- normalization layer
         """
         super(PixelDiscriminator, self).__init__()
-        if type(norm_layer) == functools.partial:  # no need to use bias as BatchNorm2d has affine parameters
+        if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
             use_bias = norm_layer == nn.InstanceNorm2d
@@ -826,7 +826,7 @@ class SEA_Block_3(nn.Module):
         return nn.Sequential(*conv_block)
 
     def forward(self, x):
-        out = self.self_attention(x) + self.conv_block(x) + x  # add skip connections
+        out = self.self_attention(x) + self.conv_block(x) + x
         return out
 
     def forward(self, x):

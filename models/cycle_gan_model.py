@@ -155,30 +155,30 @@ class CycleGANModel(BaseModel):
         """Calculate GAN loss for discriminator D_A"""
         real_B = self.real_B  # (B C H W)
         fake_B = self.fake_B_pool.query(self.fake_B)  # (B C H W)
-        ###给fake_B添加噪点
+
         BatchSize_fake, C_fake, H_fake, W_fake = fake_B.size()
         img_fake = fake_B.view(H_fake, W_fake, C_fake)  # (H W C)
-        # img_fake_np = img_fake.numpy()  # 将（H W C）的Tensor转为（H W C）的numpy
+        # img_fake_np = img_fake.numpy()
         img_fake_np = img_fake.cpu().detach().numpy()
 
         h_fake, w_fake, c_fake = img_fake_np.shape
         Nd = 0.1
         Sd = 1 - Nd
-        mask_fake = np.random.choice((0, 1, 2), size=(h_fake, w_fake, 1), p=[Nd / 2.0, Nd / 2.0, Sd])  # 生成一个通道的mask
-        mask_fake = np.repeat(mask_fake, c_fake, axis=2)  # 在通道的维度复制，生成彩色的mask
+        mask_fake = np.random.choice((0, 1, 2), size=(h_fake, w_fake, 1), p=[Nd / 2.0, Nd / 2.0, Sd])
+        mask_fake = np.repeat(mask_fake, c_fake, axis=2)
         img_fake_np[mask_fake == 0] = 0
         img_fake_np[mask_fake == 1] = 255
-        img_fake_Tensor = torch.from_numpy(img_fake_np)  # （H W C）numpy转为（H W C）的Tensor
+        img_fake_Tensor = torch.from_numpy(img_fake_np)
         H1_fake, W1_fake, C1_fake = img_fake_Tensor.size()
-        fake_B = img_fake_Tensor.view(BatchSize_fake, C1_fake, H1_fake, W1_fake)  # 将（H W C）的Tensor转为（B C H W）的Tensor
-        ###给real_B添加噪点
+        fake_B = img_fake_Tensor.view(BatchSize_fake, C1_fake, H1_fake, W1_fake)  #
+
         BatchSize_real, C_real, H_real, W_real = real_B.size()
         img_real = real_B.view(H_real, W_real, C_real)
         # img_real_np = img_real.numpy()
         img_real_np = img_fake.cpu().detach().numpy()
         h_real, w_real, c_real = img_real_np.shape
-        mask_real = np.random.choice((0, 1, 2), size=(h_real, w_real, 1), p=[Nd / 2.0, Nd / 2.0, Sd])  # 生成一个通道的mask
-        mask_real = np.repeat(mask_real, c_real, axis=2)  # 在通道的维度复制，生成彩色的mask
+        mask_real = np.random.choice((0, 1, 2), size=(h_real, w_real, 1), p=[Nd / 2.0, Nd / 2.0, Sd])
+        mask_real = np.repeat(mask_real, c_real, axis=2)
         img_real_np[mask_real == 0] = 0
         img_real_np[mask_real == 1] = 255
         img_real_Tensor = torch.from_numpy(img_real_np)
@@ -254,19 +254,19 @@ class CycleGANModel(BaseModel):
 
     def optimize_parameters(self):
         # forward
-        self.forward()  # compute fake images and reconstruction images.
+        self.forward()
         # G_A and G_B
-        self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
-        self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
-        self.backward_G()  # calculate gradients for G_A and G_B
-        self.optimizer_G.step()  # update G_A and G_B's weights
+        self.set_requires_grad([self.netD_A, self.netD_B], False)
+        self.optimizer_G.zero_grad()
+        self.backward_G()
+        self.optimizer_G.step()
         # D_A and D_B
         self.set_requires_grad([self.netD_A, self.netD_B], True)
         for i in range(3):
-            self.optimizer_D.zero_grad()  # set D_A and D_B's gradients to zero
-            self.backward_D_A()  # calculate gradients for D_A
-            self.backward_D_B()  # calculate graidents for D_B
-            self.optimizer_D.step()  # update D_A and D_B's weights
+            self.optimizer_D.zero_grad()
+            self.backward_D_A()
+            self.backward_D_B()
+            self.optimizer_D.step()
     # def optimize_parameters(self):
     #     # forward
     #     self.forward()  # compute fake images and reconstruction images.
