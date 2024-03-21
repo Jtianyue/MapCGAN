@@ -5,7 +5,9 @@ from skimage import io
 from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from torchvision.transforms import ToTensor
+from skimage.metrics import mean_squared_error as mse
 from PIL import Image
+import torch.nn.functional as F
 
 # 初始化LPIPS
 lpips_model = lpips.LPIPS(net='alex').cuda()  # 使用GPU进行加速
@@ -18,6 +20,8 @@ def calculate_metrics(img1_tensor, img2_tensor):
     # 计算LPIPS
     lpips_distance = lpips_model(img1_tensor, img2_tensor).item()
 
+    mse_value = ((img1_tensor - img2_tensor) ** 2).mean().item()
+
     # 将Tensor转换回numpy数组并归一化到[0, 255]
     img1_np = (img1_tensor.squeeze().cpu().numpy().transpose(1, 2, 0) * 255).astype('uint8')
     img2_np = (img2_tensor.squeeze().cpu().numpy().transpose(1, 2, 0) * 255).astype('uint8')
@@ -28,7 +32,9 @@ def calculate_metrics(img1_tensor, img2_tensor):
     # 计算PSNR
     psnr_value = psnr(img1_np, img2_np)
 
-    return ssim_value, psnr_value, lpips_distance
+    # mse_value = mse(img1_np, img2_np)
+
+    return ssim_value, psnr_value, lpips_distance,mse_value
 
 
 folder_path = 'results/maps_base1000/test_latest/images'
@@ -38,8 +44,8 @@ image_files = sorted(
 # 确保图片数量是6的倍数
 assert len(image_files) % 6 == 0, "The number of images in the folder must be a multiple of 6."
 
-ssim_total3, psnr_total3, lpips_total3 = 0, 0, 0
-ssim_total2, psnr_total2, lpips_total2 = 0, 0, 0
+ssim_total3, psnr_total3, lpips_total3, mse_total3 = 0, 0, 0,0
+ssim_total2, psnr_total2, lpips_total2, mse_total2 = 0, 0, 0,0
 num_pairs = 0
 
 # for i in range(0, len(image_files), 6):
@@ -61,21 +67,23 @@ for i in range(0, len(image_files), 6):
     img1_path, img2_path = pairs[0]
     img1 = to_tensor(Image.open(img1_path).convert('RGB')).unsqueeze(0).cuda()
     img2 = to_tensor(Image.open(img2_path).convert('RGB')).unsqueeze(0).cuda()
-    ssim_value, psnr_value, lpips_distance = calculate_metrics(img1, img2)
+    ssim_value, psnr_value, lpips_distance,mse = calculate_metrics(img1, img2)
 
     ssim_total3 += ssim_value
     psnr_total3 += psnr_value
     lpips_total3 += lpips_distance
+    mse_total3 +=mse
 
     img1_path2, img2_path2 = pairs[1]
 
     img1 = to_tensor(Image.open(img1_path2).convert('RGB')).unsqueeze(0).cuda()
     img2 = to_tensor(Image.open(img2_path2).convert('RGB')).unsqueeze(0).cuda()
-    ssim_value, psnr_value, lpips_distance = calculate_metrics(img1, img2)
+    ssim_value, psnr_value, lpips_distance,mse = calculate_metrics(img1, img2)
 
     ssim_total2 += ssim_value
     psnr_total2 += psnr_value
     lpips_total2 += lpips_distance
+    mse_total2 += mse
     num_pairs += 1
 
 
@@ -83,16 +91,20 @@ for i in range(0, len(image_files), 6):
 ssim_avg3 = ssim_total3 / num_pairs
 psnr_avg3 = psnr_total3 / num_pairs
 lpips_avg3 = lpips_total3 / num_pairs
+mse_avg3 = mse_total3 / num_pairs
 
 ssim_avg2 = ssim_total2 / num_pairs
 psnr_avg2 = psnr_total2 / num_pairs
 lpips_avg2 = lpips_total2 / num_pairs
+mse_avg2 = mse_total2 / num_pairs
 
 print(f"Average SSIM: {ssim_avg3}")
 print(f"Average PSNR: {psnr_avg3}")
 print(f"Average LPIPS: {lpips_avg3}")
+print(f"Average MSE: {mse_avg3}")
 
 
 print(f"Average SSIM: {ssim_avg2}")
 print(f"Average PSNR: {psnr_avg2}")
 print(f"Average LPIPS: {lpips_avg2}")
+print(f"Average MSE: {mse_avg2}")
