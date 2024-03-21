@@ -6,7 +6,7 @@ from . import networks
 import numpy as np
 from lpips import LPIPS
 
-
+#
 class CycleGANModel(BaseModel):
     """
     This class implements the CycleGAN model, for learning image-to-image translation without paired data.
@@ -90,7 +90,8 @@ class CycleGANModel(BaseModel):
             self.fake_B_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
             # define loss functions
             self.criterionGAN = networks.GANLoss(opt.gan_mode).to(self.device)  # define GAN loss.
-            self.criterionCycle = torch.nn.L1Loss()
+            # self.criterionCycle = torch.nn.L1Loss()
+            self.criterionCycle = LPIPS(net='alex').to(self.device)
             self.criterionIdt = torch.nn.L1Loss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -140,15 +141,84 @@ class CycleGANModel(BaseModel):
         loss_D.backward()
         return loss_D
 
+    # def backward_D_A(self):
+    #     """Calculate GAN loss for discriminator D_A"""
+    #     fake_B = self.fake_B_pool.query(self.fake_B)
+    #     self.loss_D_A = self.backward_D_basic(self.netD_A, self.real_B, fake_B)
+    #
+    # def backward_D_B(self):
+    #     """Calculate GAN loss for discriminator D_B"""
+    #     fake_A = self.fake_A_pool.query(self.fake_A)
+    #     self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
+
     def backward_D_A(self):
         """Calculate GAN loss for discriminator D_A"""
-        fake_B = self.fake_B_pool.query(self.fake_B)
-        self.loss_D_A = self.backward_D_basic(self.netD_A, self.real_B, fake_B)
+        real_B = self.real_B  # (B C H W)
+        fake_B = self.fake_B_pool.query(self.fake_B)  # (B C H W)
+
+        BatchSize_fake, C_fake, H_fake, W_fake = fake_B.size()
+        img_fake = fake_B.view(H_fake, W_fake, C_fake)  # (H W C)
+        # img_fake_np = img_fake.numpy()
+        img_fake_np = img_fake.cpu().detach().numpy()
+
+        h_fake, w_fake, c_fake = img_fake_np.shape
+        Nd = 0.1
+        Sd = 1 - Nd
+        mask_fake = np.random.choice((0, 1, 2), size=(h_fake, w_fake, 1), p=[Nd / 2.0, Nd / 2.0, Sd])
+        mask_fake = np.repeat(mask_fake, c_fake, axis=2)
+        img_fake_np[mask_fake == 0] = 0
+        img_fake_np[mask_fake == 1] = 255
+        img_fake_Tensor = torch.from_numpy(img_fake_np)
+        H1_fake, W1_fake, C1_fake = img_fake_Tensor.size()
+        fake_B = img_fake_Tensor.view(BatchSize_fake, C1_fake, H1_fake, W1_fake)
+
+        BatchSize_real, C_real, H_real, W_real = real_B.size()
+        img_real = real_B.view(H_real, W_real, C_real)
+        # img_real_np = img_real.numpy()
+        img_real_np = img_fake.cpu().detach().numpy()
+        h_real, w_real, c_real = img_real_np.shape
+        mask_real = np.random.choice((0, 1, 2), size=(h_real, w_real, 1), p=[Nd / 2.0, Nd / 2.0, Sd])
+        mask_real = np.repeat(mask_real, c_real, axis=2)
+        img_real_np[mask_real == 0] = 0
+        img_real_np[mask_real == 1] = 255
+        img_real_Tensor = torch.from_numpy(img_real_np)
+        H1_real, W1_real, C1_real = img_real_Tensor.size()
+        real_B = img_real_Tensor.view(BatchSize_real, C1_real, H1_real, W1_real)
+        self.loss_D_A = self.backward_D_basic(self.netD_A, real_B, fake_B)
 
     def backward_D_B(self):
         """Calculate GAN loss for discriminator D_B"""
+        real_A = self.real_A
         fake_A = self.fake_A_pool.query(self.fake_A)
-        self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
+
+        BatchSize_fake, C_fake, H_fake, W_fake = fake_A.size()
+        img_fake = fake_A.view(H_fake, W_fake, C_fake)
+        # img_fake_np = img_fake.numpy()
+        img_fake_np = img_fake.cpu().detach().numpy()
+        h_fake, w_fake, c_fake = img_fake_np.shape
+        Nd = 0.1
+        Sd = 1 - Nd
+        mask_fake = np.random.choice((0, 1, 2), size=(h_fake, w_fake, 1), p=[Nd / 2.0, Nd / 2.0, Sd])
+        mask_fake = np.repeat(mask_fake, c_fake, axis=2)
+        img_fake_np[mask_fake == 0] = 0
+        img_fake_np[mask_fake == 1] = 255
+        img_fake_Tensor = torch.from_numpy(img_fake_np)
+        H1_fake, W1_fake, C1_fake = img_fake_Tensor.size()
+        fake_B = img_fake_Tensor.view(BatchSize_fake, C1_fake, H1_fake, W1_fake)
+
+        BatchSize_real, C_real, H_real, W_real = real_A.size()
+        img_real = real_A.view(H_real, W_real, C_real)
+        # img_real_np = img_real.numpy()
+        img_real_np = img_fake.cpu().detach().numpy()
+        h_real, w_real, c_real = img_real_np.shape
+        mask_real = np.random.choice((0, 1, 2), size=(h_real, w_real, 1), p=[Nd / 2.0, Nd / 2.0, Sd])
+        mask_real = np.repeat(mask_real, c_real, axis=2)
+        img_real_np[mask_real == 0] = 0
+        img_real_np[mask_real == 1] = 255
+        img_real_Tensor = torch.from_numpy(img_real_np)
+        H1_real, W1_real, C1_real = img_real_Tensor.size()
+        real_B = img_real_Tensor.view(BatchSize_real, C1_real, H1_real, W1_real)
+        self.loss_D_B = self.backward_D_basic(self.netD_B, real_A, fake_A)
 
     def backward_G(self):
         """Calculate the loss for generators G_A and G_B"""
@@ -172,32 +242,42 @@ class CycleGANModel(BaseModel):
         # GAN loss D_B(G_B(B))
         self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True)
         # Forward cycle loss || G_B(G_A(A)) - A||
-        self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) *7.5
+        # self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A
+        self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * 7.5
         # Backward cycle loss || G_A(G_B(B)) - B||
+        # self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * 12.5
         # combined loss and calculate gradients
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
         self.loss_G.backward()
 
+
     def optimize_parameters(self):
-        """Calculate losses, gradients, and update network weights; called in every training iteration"""
         # forward
-        self.forward()      # compute fake images and reconstruction images.
+        self.forward()  # compute fake images and reconstruction images.
         # G_A and G_B
         self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
         self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
-        self.backward_G()             # calculate gradients for G_A and G_B
-        self.optimizer_G.step()       # update G_A and G_B's weights
+        self.backward_G()  # calculate gradients for G_A and G_B
+        self.optimizer_G.step()  # update G_A and G_B's weights
         # D_A and D_B
         self.set_requires_grad([self.netD_A, self.netD_B], True)
-        self.optimizer_D.zero_grad()   # set D_A and D_B's gradients to zero
-        self.backward_D_A()      # calculate gradients for D_A
-        self.backward_D_B()      # calculate graidents for D_B
-        self.optimizer_D.step()  # update D_A and D_B's weights
-
-
-
-
-
-
-
+        for i in range(3):
+            self.optimizer_D.zero_grad()  # set D_A and D_B's gradients to zero
+            self.backward_D_A()  # calculate gradients for D_A
+            self.backward_D_B()  # calculate graidents for D_B
+            self.optimizer_D.step()  # update D_A and D_B's weights
+    # def optimize_parameters(self):
+    #     # forward
+    #     self.forward()  # compute fake images and reconstruction images.
+    #     # G_A and G_B
+    #     self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
+    #     self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
+    #     self.backward_G()  # calculate gradients for G_A and G_B
+    #     self.optimizer_G.step()  # update G_A and G_B's weights
+    #     # D_A and D_B
+    #     self.set_requires_grad([self.netD_A, self.netD_B], True)
+    #     self.optimizer_D.zero_grad()  # set D_A and D_B's gradients to zero
+    #     self.backward_D_A()  # calculate gradients for D_A
+    #     self.backward_D_B()  # calculate graidents for D_B
+    #     self.optimizer_D.step()  # update D_A and D_B's weights
