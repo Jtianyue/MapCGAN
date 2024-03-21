@@ -20,7 +20,7 @@ def calculate_metrics(img1_tensor, img2_tensor):
     # 计算LPIPS
     lpips_distance = lpips_model(img1_tensor, img2_tensor).item()
 
-    mse_value = ((img1_tensor - img2_tensor) ** 2).mean().item()
+    # mse_value = ((img1_tensor - img2_tensor) ** 2).mean().item()
 
     # 将Tensor转换回numpy数组并归一化到[0, 255]
     img1_np = (img1_tensor.squeeze().cpu().numpy().transpose(1, 2, 0) * 255).astype('uint8')
@@ -32,7 +32,7 @@ def calculate_metrics(img1_tensor, img2_tensor):
     # 计算PSNR
     psnr_value = psnr(img1_np, img2_np)
 
-    # mse_value = mse(img1_np, img2_np)
+    mse_value = (((img1_np - img2_np) ** 2).mean())
 
     return ssim_value, psnr_value, lpips_distance,mse_value
 
