@@ -723,7 +723,7 @@ class NLayerDiscriminator(nn.Module):
             norm_layer      -- normalization layer
         """
         super(NLayerDiscriminator, self).__init__()
-        if type(norm_layer) == functools.partial:  # no need to use bias as BatchNorm2d has affine parameters
+        if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
             use_bias = norm_layer == nn.InstanceNorm2d
@@ -733,7 +733,7 @@ class NLayerDiscriminator(nn.Module):
         sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), nn.LeakyReLU(0.2, True)]
         nf_mult = 1
         nf_mult_prev = 1
-        for n in range(1, n_layers):  # gradually increase the number of filters
+        for n in range(1, n_layers):
             nf_mult_prev = nf_mult
             nf_mult = min(2 ** n, 8)
             sequence += [
@@ -750,7 +750,7 @@ class NLayerDiscriminator(nn.Module):
             nn.LeakyReLU(0.2, True)
         ]
 
-        sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]  # output 1 channel prediction map
+        sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]
         self.model = nn.Sequential(*sequence)
 
     def forward(self, input):
@@ -770,7 +770,7 @@ class PixelDiscriminator(nn.Module):
             norm_layer      -- normalization layer
         """
         super(PixelDiscriminator, self).__init__()
-        if type(norm_layer) == functools.partial:  # no need to use bias as BatchNorm2d has affine parameters
+        if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
             use_bias = norm_layer == nn.InstanceNorm2d
@@ -826,7 +826,7 @@ class SEA_Block_3(nn.Module):
         return nn.Sequential(*conv_block)
 
     def forward(self, x):
-        out = self.self_attention(x) + self.conv_block(x) + x  # add skip connections
+        out = self.self_attention(x) + self.conv_block(x) + x
         return out
 
     def forward(self, x):
